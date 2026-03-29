@@ -1,0 +1,71 @@
+import time
+import platform
+import math
+import numpy as np
+from numba import njit, prange, cuda
+
+# --- 1. ЯДРО: ТВОЙ ИСХОДНЫЙ ТЕСТ (Исправленный от "хитростей" компилятора) ---
+@njit(fastmath=True)
+def turbo_flash_engine_test(n):
+    res = 0.0
+    for i in range(n):
+        res += math.sqrt(i) # Добавили корень, чтобы CPU реально потел
+    return res
+
+# --- 2. ЯДРО: ТЯЖЕЛЫЙ ПАРАЛЛЕЛЬНЫЙ СЛОЙ (Для твоего Intel) ---
+@njit(fastmath=True, parallel=True)
+def accelerate_layer_parallel(w, x, b):
+    size = w.size
+    result = np.empty(size, dtype=np.float32)
+    for i in prange(size):
+        # Комбинация тригонометрии — CPU не сможет это "сократить"
+        result[i] = math.sin(w[i]) * x[i] + math.cos(b[i])
+    return result
+
+def run_comparison():
+    n = 10_000_000 # Для цикла
+    size = 10_000_000 # Для массивов
+    
+    print(f"--- TURBO FLASH ENGINE: {platform.processor()} ---")
+    print(f"Платформа: {platform.system()} {platform.machine()}")
+
+    # --- ТЕСТ 1: Обычный Python vs JIT ---
+    print(f"\n[1/2] Запуск стресс-теста цикла ({n} итераций)...")
+    
+    # Прогрев JIT
+    turbo_flash_engine_test(10)
+    
+    t0 = time.perf_counter()
+    turbo_flash_engine_test(n)
+    t1 = time.perf_counter()
+    
+    jit_time = t1 - t0
+    print(f"Результат JIT (с корнем): {jit_time:.6f} сек.")
+    print(f"Скорость: {n / jit_time / 1e6:.2f} млн операций/сек")
+
+    # --- ТЕСТ 2: Параллельные вычисления ---
+    print(f"\n[2/2] Запуск многопоточного слоя ({size} параметров)...")
+    
+    w = np.random.rand(size).astype(np.float32)
+    x = np.random.rand(size).astype(np.float32)
+    b = np.random.rand(size).astype(np.float32)
+    
+    # Прогрев
+    accelerate_layer_parallel(w[:100], x[:100], b[:100])
+    
+    t0 = time.perf_counter()
+    res = accelerate_layer_parallel(w, x, b)
+    t1 = time.perf_counter()
+    
+    parallel_time = t1 - t0
+    print(f"Обработано за: {parallel_time:.6f} сек.")
+    print(f"Мощность: {size / parallel_time / 1e6:.2f} млн векторов/сек")
+    
+    # --- ПРОВЕРКА GPU ---
+    if not cuda.is_available():
+        print("\n[INFO] GPU NVIDIA не обнаружен. Работаем на чистом Intel Power.")
+
+if __name__ == "__main__":
+    run_comparison()
+    print("\n--- Система готова к интеграции ---")
+input("\nТест завершен! Нажми Enter, чтобы закрыть окно...")
